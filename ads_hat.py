@@ -24,10 +24,20 @@ class ADS_I2C():
     R_REF = 1650
     ADC_TEMP_STEP = 0.0312
     GAIN = 8
+    SAMPLE_RATES = {
+        20: 0b000,
+        45: 0b001,
+        90: 0b010,
+        175: 0b001,
+        330: 0b100,
+        600: 0b101,
+        1000: 0b110
+    }
 
-    def __init__(self, port=I2C_PORT, addr=ADDR):
+    def __init__(self, port=I2C_PORT, addr=ADDR, sample_rate=20):
         self.bus = SMBus(port) 
         self.addr = addr
+        self.sample_rate = sample_rate
 
     def get_rtd_temp(self):
         '''
@@ -43,7 +53,7 @@ class ADS_I2C():
         reg_cmds = [
                 # (reg, reg_val)
                 (0x40, 0x36),
-                (0x44, 0x0A),
+                (0x44, 0x0A | (self.SAMPLE_RATES[self.sample_rate] << 5)),
                 (0x48, 0x56),
                 (0x4c, 0x80)
                 ]
@@ -71,17 +81,15 @@ class ADS_I2C():
         time.sleep(0.1)
 
         ### start read ### 
-        read_cmd = 0x10
+        drdy_cmd = 0x28
         while True: 
-            time.sleep(1)
-            data = self.bus.read_i2c_block_data(self.addr, read_cmd, 3)
-            hexs = [hex(byte).strip('0x').zfill(2) for byte in data]
-            # TODO: this is the most consistent pattern and seems to react to temperature 
-            hexs_endian = [hexs[1], hexs[2], hexs[0]]
-            hex_str = ''.join(hexs_endian)
-            code = int(hex_str, 16)
-            decode = (code / math.pow(2,24) )*self.R_REF/self.GAIN # see equation at p#58 of ADS docs
-            print(decode) 
+            time.sleep(0.02)
+            hexs = self.rdata()
+            if hexs: 
+                hex_str = ''.join(hexs)
+                code = int(hex_str, 16)
+                decode = code*self.R_REF/self.GAIN
+                print(decode) 
 
     def get_adc_temp(self):
         '''
@@ -100,6 +108,10 @@ class ADS_I2C():
                 (0x4c, 0x70)
                 ]
 
+        for reg, reg_data in reg_cmds:
+            self.bus.write_byte_data(self.addr, reg, reg_data)
+            time.sleep(0.1)
+
         ### start command ###
         start_sync = 0x08
         self.bus.write_byte(self.addr, start_sync) 
@@ -107,22 +119,30 @@ class ADS_I2C():
 
         ### start read ### 
         while True:
-            time.sleep(1)
-            rdata = 0x10 # start a read
-            data = self.bus.read_i2c_block_data(self.addr, rdata, 3) # 24-bit, so 3 bytes of conversion results
+            # TODO: garbage output from the ADC
+            time.sleep(0.02)
+            hexs = self.rdata()
+            if hexs:
+                temp_bytes = int(''.join(hexs[0:2]), 16)
+                # convert the 14-bit, left-justified binary to a 2's compliment temperature
+                fourteen_bits = temp_bytes & 0x3fff  # get rid of everything except the last 14 bits 
+
+                if fourteen_bits >= 1<<13: # 2's compliment
+                    fourteen_bits -= 1<<14
+                adc_temp = fourteen_bits*self.ADC_TEMP_STEP # apply step value 
+                print(adc_temp)
+
+    def rdata(self):
+        read_cmd = 0x10
+        drdy_cmd = 0x28
+        drdy = (self.bus.read_byte_data(self.addr, drdy_cmd, 1) & 0x80)
+        hexs = []
+        if (drdy):
+            data = self.bus.read_i2c_block_data(self.addr, read_cmd, 3)
             hexs = [hex(byte).strip('0x').zfill(2) for byte in data]
-            print(hexs) # TODO: this is garbage
-
-            # convert the 14-bit, left-justified binary to a 2's compliment temperature
-            temp_code = ''.join(hexs)[-4:]
-            fourteen_bits = int(bin(int(temp_code, 16))[-14:], 2) # get rid of everything except the last 14 bits 
-
-            if fourteen_bits >= 1<<13: # 2's compliment
-                fourteen_bits -= 1<<14
-            adc_temp = fourteen_bits*self.ADC_TEMP_STEP # apply step value 
-            print(adc_temp)
+            return hexs
 
 if __name__ == '__main__':
     ads = ADS_I2C()
     ads.get_adc_temp()
-    ads.get_rtd_temp()
+    # ads.get_rtd_temp()

@@ -41,3 +41,9 @@ Test ADC (garbage output currently)
 '''sh
 ./ads_hat.py
 '''
+
+## Current issues
+
+* Scaling factor between ADS code and temperature is unknown
+* IMU library needs calibration commands and python flags
+

@@ -11,7 +11,10 @@ import digitalio
 import busio
 
 # get GPS constants 
-from . import nav_consts
+if __name__ == '__main__':
+    from nav_consts import *
+else:
+    from .nav_consts import *
 
 # TODO: replace print with proper logging
 
@@ -53,11 +56,11 @@ class NEO_M8P_HAT:
         return success
 
     def check_res(self, res, msg_cls, msg_id):
-        if res['class'] != 0x05:
+        if res['class'] != ACK_ACK[0]:
             print(f"Unknown message class {res['class']}")
             return False
-        if res['id'] != 0x01:
-            if res['id'] == 0x00:
+        if res['id'] != ACK_ACK[1]:
+            if res['id'] == ACK_NAK[1]:
                 print(f"Message was not acknowledged")
                 return False
             else: 
@@ -83,7 +86,17 @@ class NEO_M8P_HAT:
         payload = self.uart.read(msg_length)
         # TODO: check checksum here
 
-        return { 'class': header[2], 'id': header[3], 'payload': payload }
+        rec_msg = NEO_M8P_MSG(header[2], header[3], msg_length)
+        rec_msg.set_payload(payload)
+
+        return rec_msg
+            # { 'class': header[2], 'id': header[3], 'payload': payload }
+
+    def receive_ubx_cont(self, recent_msgs):
+        while True:
+            ubx_packet = self.receive_ubx()
+            if ubx_packet['class'] == NAV_PVT[0] and ubx_packet['id'] == NAV_PVT[1]: # TODO: add more relevant messages
+                recent_msgs['nav_pvt'] = ubx_packet['payload'].hex()
 
     def read_i2c_message(self):
         '''
@@ -136,6 +149,9 @@ class NEO_M8P_MSG:
         msg.append(ck_b)
 
         return bytearray(msg)
+    
+    def __getitem__(self, key):
+        return { 'class':self.msg_cls, 'id':self.msg_id, 'payload':self.payload }[key]
 
 if __name__ == '__main__':
     timepulse = digitalio.DigitalInOut(board.D26)

@@ -55,5 +55,6 @@ Test IMU
 ## Current issues
 
 - [ ] IMU library needs calibration commands and python flags
-- [ ] IMU and GPS library need infinite loop functions for updating sensor values
+- [ ] IMU library needs infinite loop functions for updating sensor values
 - [ ] Configurable logger that controls Neopixel 2 should be used instead of print
+- [ ] Cleanup code make more generic

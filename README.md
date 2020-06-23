@@ -29,21 +29,31 @@ sudo raspi-config; # enable I2C in the interfacing options
 
 Test GPS
 ```sh
-./neo_m8p_hat.py
+./neo_m8p/neo_m8p_hat.py
 ```
 
 Test THP sensors
 ```sh
-sudo ./wx_hat.py
+sudo ./thp_sensors.py
 ```
 
-Test ADC (garbage output currently)
+Test ADC
 ```sh
 ./ads_hat.py
 ```
 
+Test Concurrent Sampling 
+```sh
+sudo ./wxhat.py
+```
+
+Test IMU
+```sh
+./pi-bno080/getbno080 -t acc -v
+```
+
 ## Current issues
 
-* Scaling factor between ADS code and temperature is unknown
-* IMU library needs calibration commands and python flags
-
+- [ ] IMU library needs calibration commands and python flags
+- [ ] IMU and GPS library need infinite loop functions for updating sensor values
+- [ ] Configurable logger that controls Neopixel 2 should be used instead of print

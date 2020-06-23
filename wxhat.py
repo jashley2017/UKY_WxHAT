@@ -1,89 +1,69 @@
-#!/usr/bin/python3
-'''
-A Python script to combine the functionality of all of the sensors in the Raspberry Pi 4 WxHAT
-'''
-import board
-import busio
-import math
+#! /usr/bin/python3
 import time
+import RPi.GPIO as GPIO
+from ads_hat import ADS_I2C
+from multiprocessing import Process, Value
+from thp_sensors import THPSensors
+from neopixel_hat import Pixels, PixelError, RED, GREEN, BLUE, WHITE, YELLOW
+from neo_m8p.neo_m8p_hat import NEO_M8P_HAT, NEO_M8P_MSG
+from neo_m8p.nav_consts import * 
 
-import adafruit_bme280
-import adafruit_bmp3xx
-import adafruit_sht31d
+GPIO.setmode(GPIO.BCM)
 
-import neopixel_hat
+STATUS_STARTUP = RED
+STATUS_WORKING = GREEN
+STATUS_WARNING = YELLOW
 
-BME280_ADDR = 0x77
-BMP388_ADDR = 0x76
-SHT31D_ADDR = 0x44
+ads = ADS_I2C()
+ads_code = Value('i', 0)
 
-class NoOp:
-    ''' Dummy class to compensate for sensors that are not connecting '''
-    def __init__(self): pass
-    def __getattr__(self, _): return None
+def write_sample(channel):
+    print(ads_code.value)
+    print("got here")
 
+def run_hat():
+    neo = Pixels()
+    neo.set_pixel(0, STATUS_STARTUP)
 
-class WxHat:
-    ''' Top-Level class to combine all of the sensors from the Hat '''
-    def __init__(self):
-        bus = busio.I2C(board.SCL, board.SDA)
-        self.sea_level_pressure = None
-        # init bme280
-        try:
-            self.bme280 = adafruit_bme280.Adafruit_BME280_I2C(bus, address=BME280_ADDR)
-        except:
-            self.bme280 = NoOp()
-            print("WARNING: could not connect bme280")
+    # start ADS as thread
+    p = Process(target=ads.get_rtd_temp_cont, args=(ads_code,))
+    p.start()
 
-        # init bmp388
-        try: 
-            self.bmp388 = adafruit_bmp3xx.BMP3XX_I2C(bus, address=BMP388_ADDR)
-            self.bmp388.pressure_oversampling = 8
-            self.bmp388.temperature_oversampling = 2
-        except:
-            self.bmp388 = NoOp()
-            print("WARNING: could not connect bmp388")
+    # start GPS as thread
+    gps_port = NEO_M8P_HAT('/dev/serial0', 9600) 
+    timepulse_msg = NEO_M8P_MSG(*CFG_TP5)
+    
 
-        # init sht31d
-        try:
-            self.sht31d = adafruit_sht31d.SHT31D(bus, address=SHT31D_ADDR)
-        except:
-            self.sht31d = NoOp()
-            print("WARNING: could not connect sht31d")
+    # all multibyte values are little endian unless otherwise stated
+    timepulse_msg.set_payload([
+        0x00, # timepulse selection
+        0x00, # message version                                                                                                                                      
+        0x00, # reserved                                                                                                                                             
+        0x00, # reserved                                                                                                                                             
+        0x00, 0x00, # Antenna delay                                                                                                                                  
+        0x00, 0x00, # RF delay                                                                                                                                       
+        0x01, 0x00, 0x00, 0x00, # frequency in Hz                                                                                                                    
+        0x01, 0x00, 0x00, 0x00, # frequency in Hz when GPS time is locked in
+        0xff, 0xff, 0xff, 0x7f, # 50% pulse width          
+        0xff, 0xff, 0xff, 0x7f, # 50% pulse width when locked to GPS time
+        0x00, 0x00, 0x00, 0x00, # user configurable delay
+        0b01101001, 0x00, 0x00, 0x00  # flags                                                                                                                    
+    ])                                                                                                                                                                                                                                                                                                                        
+    gps_port.send(timepulse_msg)                                                                                                                                                                                                                                                                                              
 
-    def set_sea_level(self, sea_level):
-        self.sea_level_pressure = sea_level
-        self.bme280.sea_level_pressure = sea_level
-        self.bmp388.sea_level_pressure = sea_level
+    time.sleep(1)
+    
+    # start IMU as thread
 
-    def get_altitude(self): 
-        if self.sea_level_pressure is None: 
-            print("WARNING: cannot obtain sea level from pressure without sea_level_pressure being set.")
+    # start THPSensors 
 
-        else: 
-            return { "bmp388": self.bmp388.altitude, "bme280": self.bme280.altitude }
+    GPIO.setup(26, GPIO.IN)
 
-    def get_pressure(self):
-        return { "bmp388": self.bmp388.pressure, "bme280": self.bme280.pressure,  } 
+    GPIO.add_event_detect(26, GPIO.RISING, callback=write_sample, bouncetime=200)
 
-    def get_temperature(self):
-        return { "bmp388": self.bmp388.temperature, "bme280": self.bme280.temperature, "sht31d": self.sht31d.temperature } 
-
-    def get_humidity(self):
-        return {"bme280": self.bme280.humidity, "sht31d": self.sht31d.relative_humidity } 
-
+    # while(True):
+    #   time.sleep(0.1)
+    _ = input('Press Enter to stop')
 
 if __name__ == '__main__':
-    status_leds = neopixel_hat.Pixels()
-    status_leds.set_pixel(0, neopixel_hat.YELLOW)
-    pihat = WxHat()
-    pihat.set_sea_level(1013.25)
-    while True: 
-        status_leds.set_pixel(0, neopixel_hat.OFF)
-        print(f"Temps: {pihat.get_temperature()}")
-        print(f"Hums: {pihat.get_humidity()}")
-        print(f"Press: {pihat.get_pressure()}")
-        print(f"Alts: {pihat.get_altitude()}")
-        time.sleep(0.5)
-        status_leds.set_pixel(0, neopixel_hat.GREEN) # green every time new data
-        time.sleep(0.5)
+    run_hat()

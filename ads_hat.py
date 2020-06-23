@@ -10,6 +10,7 @@ import time
 import board
 import digitalio
 import struct 
+from multiprocessing import Lock, Value
 from smbus2 import SMBus, i2c_msg
 
 class ADS_I2C():
@@ -39,10 +40,10 @@ class ADS_I2C():
         self.addr = addr
         self.sample_rate = sample_rate
 
-    def get_rtd_temp(self):
+    def setup_rtd(self):
         '''
-        gets the temperature of a 2-pin RTD thermistor 
-        base off of the pseudocode from p.50 and the configuration of the circuit on p.56 Table 27
+        sets up the 2-pin RTD thermistor configuration
+        based off of the pseudocode from p.50 and the configuration of the circuit on p.56 Table 27
         '''
         ### do a soft reset of config ###
         reset_cmd = 0x06
@@ -80,19 +81,35 @@ class ADS_I2C():
         self.bus.write_byte(self.addr, start_sync) 
         time.sleep(0.1)
 
+
+    def get_rtd_temp(self):
+        self.setup_rtd()
         ### start read ### 
-        drdy_cmd = 0x28
         while True: 
-            time.sleep(0.02)
+            time.sleep(1/(2*self.sample_rate)) # nyquist, sample at 2x the other frequency and never miss a data point
             hexs = self.rdata()
             if hexs: 
                 hex_str = ''.join(hexs)
                 code = int(hex_str, 16)
-                decode = code*self.R_REF/self.GAIN
-                print(decode) 
+                return code
+
+    def get_rtd_temp_cont(self, code):
+        '''
+        gets rtd temperature continuously 
+        '''
+        
+        self.setup_rtd()
+        ### start read ### 
+        while True: 
+            time.sleep(1/(2*self.sample_rate)) # nyquist, sample at 2x the other frequency and never miss a data point
+            hexs = self.rdata()
+            if hexs: 
+                hex_str = ''.join(hexs)
+                code.value = int(hex_str, 16)
 
     def get_adc_temp(self):
         '''
+        WARNING: GARBAGE DATA, DOES NOT CURRENTLY WORK
         gets the ADC internal temp
         currently garbage data, configuration based on p.30 and table 30 
         '''
@@ -144,5 +161,5 @@ class ADS_I2C():
 
 if __name__ == '__main__':
     ads = ADS_I2C()
-    ads.get_adc_temp()
-    # ads.get_rtd_temp()
+    # ads.get_adc_temp()
+    ads.get_rtd_temp_cont()

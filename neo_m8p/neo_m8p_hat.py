@@ -11,7 +11,7 @@ import digitalio
 import busio
 
 # get GPS constants 
-from nav_consts import *
+from . import nav_consts
 
 # TODO: replace print with proper logging
 

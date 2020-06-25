@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <linux/i2c-dev.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
@@ -149,7 +150,7 @@ int receivePacket(void) {
  * Pi 2 uses i2c-1, RPI 1 used i2c-0, NanoPi also uses i2c-0.   *
  * ------------------------------------------------------------ */
 void shtp_init(char *i2caddr) {
-
+  
    char *filename = "/dev/i2c-3";
    if((i2cfd = open(filename, O_RDWR)) < 0) {
       printf("Error failed to open I2C bus [%s].\n", filename);
@@ -711,67 +712,22 @@ int set_feature(uint8_t sensor, uint8_t features, uint16_t sensitivity, uint32_t
    return(1); 
 }
 
-int start_acc() { 
-   /*
-   shtpData[0] = SET_FEATURE_COMMAND;
-   shtpData[1] = 0x01;
-   shtpData[2] = 0x00;
-   shtpData[3] = 0x00;
-   shtpData[4] = 0x00;
-   shtpData[5] = 0x60;
-   shtpData[6] = 0xEA;
-   shtpData[7] = 0x00;
-   shtpData[8] = 0x00;
-   shtpData[9] = 0x00;
-   shtpData[10] = 0x00;
-   shtpData[11] = 0x00;
-   shtpData[12] = 0x00;
-   shtpData[13] = 0x00;
-   shtpData[14] = 0x00;
-   shtpData[15] = 0x00;
-   shtpData[16] = 0x00;
-   sendPacket(CHANNEL_CONTROL, 17);
-   usleep(100000); // sleep 100ms for sensor to catch up
-
-   return 1;
-   */
+int start_acc(int rate) { 
    // TODO: figure out how not to hardcode
-   int res = set_feature(SENSOR_REPORTID_ACC, 0, 0, 60000, 0, 0);
+   int res = set_feature(SENSOR_REPORTID_ACC, 0, 0, rate, 0, 0);
    return(res); 
-
-   /* ---------------  Get Feature Report          ------------------*/
-   /*
-   count = 0;
-   datalen = 0;
-   while ((datalen = receivePacket()) != 0) {
-      if(count > 3) break;
-      if(shtpHeader[2] == CHANNEL_CONTROL
-         && shtpData[0] == GET_FEATURE_RESPONSE) break;
-      usleep(I2CDELAY);             // Delay 100 msecs before next I2C
-      count++;
-   }
-
-   if(shtpData[0] != GET_FEATURE_RESPONSE || 
-      shtpData[1] != 0x01) {
-      printf("Error: Not getting SHTP feature report\n");
-      exit(-1);
-   }
-   if(datalen < 17) {
-	printf("Bad report length: %d\n", datalen);
-   }
-   printf("Feature Flags: %X\n", shtpData[2]); 
-   printf("Sensitivity: %X %X\n", shtpData[4], shtpData[3]); 
-   printf("Report Interval: %X %X %X %X\n", shtpData[8], shtpData[7], shtpData[6], shtpData[5]); 
-   printf("Acc config word: %X %X %X %X\n", shtpData[13], shtpData[14], shtpData[15], shtpData[16]);
-   
-   */
-	
 }
 
-int start_rot() { 
+int start_rot(int rate) { 
    // TODO: figure out how not to hardcode
-   int res = set_feature(SENSOR_REPORTID_ROT, 0, 0, 10000, 0, 0); 
+   int res = set_feature(SENSOR_REPORTID_ROT, 0, 0, rate, 0, 0); 
    return(res);
+}
+
+uint16_t rot_vector[5]; // { i, j, k, r, accuracy }
+
+uint16_t * get_rot() { 
+  return rot_vector;
 }
 
 int get_report() { 
@@ -802,6 +758,13 @@ int get_report() {
       }
       ind += 10;
     } else if(shtpData[ind] == SENSOR_REPORTID_ROT && ind+13 < datalen) { 
+
+      rot_vector[0] = shtpData[ind+5] << 8 | shtpData[ind+4];
+      rot_vector[1] = shtpData[ind+7] << 8 | shtpData[ind+6];
+      rot_vector[2] = shtpData[ind+9] << 8 | shtpData[ind+8];
+      rot_vector[3] = shtpData[ind+11] << 8 | shtpData[ind+10]; 
+      rot_vector[4] = shtpData[ind+13] << 8 | shtpData[ind+12];
+
       if(verbose == 1) { 
         printf("Rotation Vector: i [0x%04X], j [0x%04X], k [0x%04X], r [0x%04X], accuracy [0x%04X]\n", 
         shtpData[ind+5] << 8 | shtpData[ind+4], 

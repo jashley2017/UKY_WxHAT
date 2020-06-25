@@ -229,17 +229,19 @@ int main(int argc, char *argv[]) {
   // read the sensors
   //
   if(strcmp(datatype, "acc") == 0) {
-    start_acc();	
+    start_acc(1000000);	
   }
 
   if(strcmp(datatype, "rot") == 0) {
-    start_rot(); 
+    start_rot(1000000); 
   }
 
+  /*
   for(;;){
     usleep(100000); // sample every 100 ms
     get_report();
   }
+  */
 
   /* ----------------------------------------------------------- *
   * -t "inf"  print the sensor configuration                    *

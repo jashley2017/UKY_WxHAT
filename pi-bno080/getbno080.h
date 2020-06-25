@@ -202,7 +202,6 @@ extern void print_calstat(struct bnocal*);// print calibration status
 extern int get_caloffset(struct bnocal*); // read calibration values
 extern int get_prodid(struct prodid[]);   // read sensor information
 extern int get_acc(struct bnoacc*);       // read accelerometer data
-extern int start_acc();
 extern int get_eul(struct bnoeul*);       // read euler orientation
 extern int get_qua(struct bnoqua*);       // read quaternation data
 extern int get_gra(struct bnogra*);       // read gravity data
@@ -240,4 +239,6 @@ extern void print_gyr_conf();             // print gyroscope config
 extern uint8_t parseInputReport(int datalen);
 extern uint8_t getReport(int datalen);
 extern int get_report(); 
-extern int start_rot();
+extern int start_rot(int rate);
+extern int start_acc(int rate);
+extern uint16_t * get_rot();

@@ -55,10 +55,9 @@ def gps_startup():
         0xff, 0xff, 0xff, 0x7f, # 50% pulse width when locked to GPS time
         0x00, 0x00, 0x00, 0x00, # user configurable delay
         0b01101001, 0x00, 0x00, 0x00  # flags
-    ])                                                                                                                                                                                                                                                                                                                        
+    ])
 
-    gps_port.send(timepulse_msg)                                                                                                                                                                                                                                                                                              
-
+    gps_port.send(timepulse_msg)
     time.sleep(1)
 
     nav_msg_msg = NEO_M8P_MSG(*CFG_MSG) 
@@ -75,7 +74,6 @@ def gps_startup():
     
     gps_proc = Process(target=gps_port.receive_ubx_cont, args=(gps_recent_msgs,))
     gps_proc.start()   
-
 
 def run_hat():
     neo = Pixels()

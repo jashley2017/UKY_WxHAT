@@ -14,7 +14,7 @@ class BNO080_I2C:
     MAX_METADATA_SIZE   = 9
     # SHTP cmd channel: byte-0=command, byte-1=parameter, byte-n=parameter
     CHANNEL_COMMAND     = 0
-    # SHTP exec channel: write 1=reset, 2=on, 3=sleep; read 1=reset complete
+    # SHTP exec channel: write 1=reset, 2=on, 3=sleep, read 1=reset complete
     CHANNEL_EXECUTABLE  = 1
     # Sensor Hub control channel for sensor config commands and responses
     CHANNEL_CONTROL     = 2
@@ -35,6 +35,7 @@ class BNO080_I2C:
     PRODUCT_ID_RESPONSE = 0xF8
     PRODUCT_ID_REQUEST  = 0xF9
     GET_TIME_REFERENCE  = 0xFB 
+    GET_TIMESTAMP_REBASE = 0xFA
     GET_FEATURE_RESPONSE= 0xFC
     SET_FEATURE_COMMAND = 0xFD
     GET_FEATURE_REQUEST = 0xFE
@@ -53,6 +54,24 @@ class BNO080_I2C:
     SENSOR_REPORTID_STA = 0x13 # Stability Classifier
     SENSOR_REPORTID_PER = 0x1E # Personal Activity Classifier
 
+    REPORT_SIZES = {
+        SENSOR_REPORTID_ACC : 10, 
+        SENSOR_REPORTID_GYR : 10, 
+        SENSOR_REPORTID_MAG : 10, 
+        SENSOR_REPORTID_LIN : 10, 
+        SENSOR_REPORTID_ROT : 14, 
+        SENSOR_REPORTID_GRA : 10, 
+        SENSOR_REPORTID_GAM : 12, 
+        SENSOR_REPORTID_GEO : 14, 
+        SENSOR_REPORTID_TAP : 5, 
+        SENSOR_REPORTID_STP : 12, 
+        SENSOR_REPORTID_STA : 6, 
+        SENSOR_REPORTID_PER : 4, 
+        GET_TIME_REFERENCE : 5,
+        GET_TIMESTAMP_REBASE: 5
+
+    }
+
     def __init__(self, addr, port): 
         self.addr = addr
         self.bus = SMBus(port)
@@ -68,17 +87,80 @@ class BNO080_I2C:
     def start_calib(self):
         pass
 
+    def set_feature(self, sensor, features, sensitivity, rate, batch, sensor_spec):
+        feat_cmd = [
+            self.SET_FEATURE_COMMAND,
+            sensor,
+            features,
+            sensitivity & 0xff,    # sensitvity LSB
+            sensitivity >> 8,      # sensitivty MSB 
+            rate & 0xff,           # rate LSB
+            (rate & 0xff00) >> 8,    # rate
+            (rate & 0xff0000) >> 16, # rate 
+            (rate) >> 24,            # rate MSB  
+            (batch & 0xff),           # batch rate LSB
+            (batch & 0xff00) >> 8,    # batch rate
+            (batch & 0xff0000) >> 16, # batch rate 
+            (batch >> 24),            # batch rate MSB  
+            (sensor_spec & 0xff),
+            (sensor_spec & 0xff00) >> 8,
+            (sensor_spec & 0xff0000) >> 16,
+            (sensor_spec >> 24)
+        ]
+        self.send_shtp(self.CHANNEL_CONTROL, feat_cmd)
+        time.sleep(0.1) # letting sensor catch up
+        self.send_shtp(self.CHANNEL_CONTROL, [self.GET_FEATURE_REQUEST, sensor])
+        self._i2c_delay()
+        res_head, res_data = self.receive_shtp_until(self.CHANNEL_CONTROL, [self.GET_FEATURE_RESPONSE])
+
+        # TODO: Log this on debug and check the values
+        print(f"Sensor: {res_data[1]}");
+        print(f"Feature Flags: {res_data[2]}"); 
+        print(f"Sensitivity byte: {res_data[4]}, {res_data[3]}"); 
+        print(f"Report Interval word:  {res_data[8]} {res_data[7]} {res_data[6]} {res_data[5]}"); 
+        print(f"Sensor Specific Config word: {res_data[13]}, {res_data[14]}, {res_data[15]}, {res_data[16]}");
+
+        return True
+
+    def start_acc(self, rate):
+        return self.set_feature(self.SENSOR_REPORTID_ACC, 0, 0, rate, 0, 0)
+
+    def start_rot(self, rate):
+        return self.set_feature(self.SENSOR_REPORTID_ROT, 0, 0, rate, 0, 0)
+
+    def get_report(self, report_types): 
+        report_types.append(self.GET_TIME_REFERENCE)
+        res_head, res_data = self.receive_shtp_until(self.CHANNEL_REPORTS, report_types, 20)
+        report_ind = 0 
+        reports = {}
+        while report_ind < len(res_data):
+            inc = self.REPORT_SIZES.get(res_data[report_ind], None)
+            if inc is None: 
+                print(f"WARNING: unrecognized input report: {res_data[0]}")
+                return None
+            else: 
+                if not reports.get(res_data[report_ind], False):
+                    reports[res_data[report_ind]] = [res_data[report_ind:report_ind+inc]]
+                else:
+                    reports[res_data[report_ind]].append(res_data[report_ind:report_ind+inc])
+                report_ind += inc
+        return reports 
+
     def get_shtp_errors(self):
         self.send_shtp(self.CHANNEL_COMMAND, [0x01])
-        res_head, res_data = self.receive_shtp_until(self.CHANNEL_COMMAND, 0x01)
+        res_head, res_data = self.receive_shtp_until(self.CHANNEL_COMMAND, [0x01], 5)
+        # TODO: i2c_bno080.c has the error list
         return res_data[1:]
 
     def get_prod_inf(self):
         self.send_shtp(self.CHANNEL_CONTROL, [self.PRODUCT_ID_REQUEST])
-        res_head, res_data = self.receive_shtp_until(self.CHANNEL_CONTROL, self.PRODUCT_ID_RESPONSE)
+        res_head, res_data = self.receive_shtp_until(self.CHANNEL_CONTROL, [self.PRODUCT_ID_RESPONSE])
         return res_data
 
     def send_shtp(self, channel, data):
+        '''
+        sends a single SHTP message to the IMU
+        '''
         self.sequence[channel] += 1
         packetlen = len(data)+4
         packet = [
@@ -97,18 +179,22 @@ class BNO080_I2C:
         write.flags = 0x0000
         self.bus.i2c_rdwr(write)
 
-    def receive_shtp_until(self, chan_type, res_type):
+    def receive_shtp_until(self, chan_type, res_types, max_count=3):
+        '''
+        asks IMU for I2C SHTP messages until the one with the correct channel and report type(s) shows up
+        '''
+        count = 0
         res_head, res_data = self.receive_shtp()
-        count = 0 
-        while (res_head[2] != chan_type or res_data[0] != res_type) and count < 3: 
+        while (res_head[2] != chan_type or res_data[0] not in res_types) and count < max_count: 
             self._i2c_delay()
             res_head, res_data = self.receive_shtp()
             count += 1
-        return [res_head, res_data]
-
-
+        return [res_head, res_data] if res_head[2] == chan_type and res_data[0] in res_types else [None, None]
 
     def receive_shtp(self):
+        '''
+        reads a single SHTP message from the IMU
+        '''
         read_head = i2c_msg.read(self.addr, 4) 
         self.bus.i2c_rdwr(read_head)
         header = list(read_head)
@@ -152,3 +238,10 @@ if __name__ == '__main__':
         print(f"WARNING: IMU has {len(errs)} errors: {print_hex(errs)}.")
     prod_inf = imu.get_prod_inf()
     print(f"Product info: {print_hex(prod_inf)}")
+
+    imu.start_rot(10)
+    imu.start_acc(10)
+
+    time.sleep(0.2)
+    rep = imu.get_report([imu.SENSOR_REPORTID_ACC, imu.SENSOR_REPORTID_ROT])
+    print(rep)

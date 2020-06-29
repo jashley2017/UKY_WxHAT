@@ -129,6 +129,7 @@ class BNO080_I2C:
             mag_rep = report_dict.get(self.SENSOR_REPORTID_MAG, [[0x00, 0x00, 0x00]])[-1] # most recent mag report
 
         print("Calibration Success!")
+        self.save_dcd()
         return True
 
     def set_feature(self, sensor, features, sensitivity, rate, batch, sensor_spec):
@@ -165,6 +166,36 @@ class BNO080_I2C:
         # print(f"Sensor Specific Config word: {res_data[13]}, {res_data[14]}, {res_data[15]}, {res_data[16]}");
 
         return True
+
+    def save_dcd(self):
+        '''
+        saves the current dynamic calibration data, should be done after a calibration
+        '''
+        dcd_cmd = [
+            self.COMMAND_REQUEST,
+            self.sequence[self.CHANNEL_CONTROL],
+            0x06,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00
+        ]
+        self.send_shtp(self.CHANNEL_CONTROL, dcd_cmd)
+        count = 0
+        res_head, res_data = self.receive_shtp_until(self.CHANNEL_CONTROL, [self.COMMAND_RESPONSE])
+        while res_data[2] != 0x06 and count < 3:
+            count += 1
+
+        if res_data[2] == 0x06 and res_data[5] != 0:
+            print(f"ERROR: DCD Save failed after calibration: {self.print_hex(res_data)}") 
+            return False
+        else: 
+            return True
 
     def start_acc(self, rate):
         return self.set_feature(self.SENSOR_REPORTID_ACC, 0, 0, rate, 0, 0)
@@ -360,10 +391,8 @@ class BNO080_I2C:
     def _print_per(cls,rep):
         pass
     @classmethod
-    def print_hex(cls,hexs):
+    def print_hex(cls, hexs):
         return '0x' + ''.join([hex(h).strip('0x').zfill(2) for h in hexs])
-
-
 
 if __name__ == '__main__':
     # reset to start with a clean buffer

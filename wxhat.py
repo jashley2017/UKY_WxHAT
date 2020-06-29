@@ -2,12 +2,15 @@
 import time
 import csv
 import RPi.GPIO as GPIO
+import board
+import digitalio
 from ads_hat import ADS_I2C
 from multiprocessing import Process, Value, Manager
 from thp_sensors import THPSensors
 from neopixel_hat import Pixels, PixelError, RED, GREEN, BLUE, WHITE, YELLOW
 from neo_m8p.neo_m8p_hat import NEO_M8P_HAT, NEO_M8P_MSG
 from neo_m8p.nav_consts import * 
+from bno080_i2c import BNO080_I2C
 
 GPIO.setmode(GPIO.BCM)
 
@@ -22,13 +25,18 @@ thp = THPSensors()
 
 gps_recent_msgs = Manager().dict()
 
+imu_recent_reports = Manager().dict()
+
 def write_sample(channel):
     new_row = [ # TODO: this is irresponsible but clever, dictionaries are not usually ordered, but the return values for these functions statically order them
             ads_code.value,
             *thp.get_pressure().values(), 
             *thp.get_temperature().values(),
             *thp.get_humidity().values(),
-            gps_recent_msgs.get('nav_pvt', None)
+            gps_recent_msgs.get('nav_pvt', None),
+            BNO080_I2C.parse_rep(imu_recent_reports.get(BNO080_I2C.SENSOR_REPORTID_ROT, [None])[-1]), # the last in the list is the most recent
+            BNO080_I2C.parse_rep(imu_recent_reports.get(BNO080_I2C.SENSOR_REPORTID_ACC, [None])[-1])
+            # imu_recent_reports.get(BNO080_I2C.GET_TIME_REFERENCE, [None])[-1] # available if useful
     ]
 
     print (new_row)
@@ -75,13 +83,31 @@ def gps_startup():
     gps_proc = Process(target=gps_port.receive_ubx_cont, args=(gps_recent_msgs,))
     gps_proc.start()   
 
+def imu_start():
+    # reset to start with a clean buffer
+    rst = digitalio.DigitalInOut(board.D22)
+    rst.direction = digitalio.Direction.OUTPUT
+    rst.value = False
+    time.sleep(1)
+    rst.value = True
+    time.sleep(1)
+
+    imu = BNO080_I2C(0x4a, 3)
+    imu.get_shtp_errors()
+    imu_inf = imu.get_prod_inf()
+    imu.start_rot(1) 
+    imu.start_acc(1)
+    running_report_types = [imu.SENSOR_REPORTID_ACC, imu.SENSOR_REPORTID_ROT]
+    imu_proc = Process(target=imu.get_report_cont, args=(running_report_types, 0.5, imu_recent_reports))
+    imu_proc.start()
+
 def run_hat():
     neo = Pixels()
     neo.set_pixel(0, STATUS_STARTUP)
 
     with open('wxhat_results.csv', 'w') as csv_file: 
         csv_writer = csv.writer(csv_file)
-        header = ['ADS Code', 'BMP388 Pressure', 'BME280 Pressure', 'BMP388 Temperature', 'BME280 Temperature', 'SHT31D Temperature', 'BME280 Humidity', 'SHT31D Humidity', 'GPS NAVPVT MSG']
+        header = ['ADS Code', 'BMP388 Pressure', 'BME280 Pressure', 'BMP388 Temperature', 'BME280 Temperature', 'SHT31D Temperature', 'BME280 Humidity', 'SHT31D Humidity', 'GPS NAVPVT MSG', 'IMU ROT REPORT', 'IMU ACC REPORT']
         csv_writer.writerow(header)
 
     # start ADS as thread
@@ -93,6 +119,7 @@ def run_hat():
     gps_startup()
 
     # start IMU as thread
+    imu_start()
 
     # start THPSensors 
 

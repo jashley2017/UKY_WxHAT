@@ -77,7 +77,6 @@ class BNO080_I2C:
         SENSOR_REPORTID_PER : 4, 
         GET_TIME_REFERENCE : 5,
         GET_TIMESTAMP_REBASE: 5
-
     }
 
     def __init__(self, addr, port): 
@@ -227,6 +226,21 @@ class BNO080_I2C:
                 report_ind += inc
         return reports 
 
+    def get_report_cont(self, report_types, rate, reports):
+        while True: 
+            report_types.append(self.GET_TIME_REFERENCE)
+            res_head, res_data = self.receive_shtp_until(self.CHANNEL_REPORTS, report_types, 20)
+            report_ind = 0 
+            while report_ind < len(res_data):
+                inc = self.REPORT_SIZES.get(res_data[report_ind], None)
+                if inc is None: 
+                    print(f"WARNING: unrecognized input report: {res_data[0]}")
+                    return None
+                else: 
+                    reports[res_data[report_ind]] = [res_data[report_ind:report_ind+inc]]
+                    report_ind += inc
+            time.sleep(rate)
+
     def get_shtp_errors(self):
         self.send_shtp(self.CHANNEL_COMMAND, [0x01])
         res_head, res_data = self.receive_shtp_until(self.CHANNEL_COMMAND, [0x01], 5)
@@ -337,7 +351,7 @@ class BNO080_I2C:
             print("Did not get advertisement, moving on")
 
     @classmethod
-    def print_rep(cls, rep):
+    def parse_rep(cls, rep):
         rep_methods = {
                 cls.SENSOR_REPORTID_ACC: cls._print_acc, 
                 cls.SENSOR_REPORTID_GYR: cls._print_gyr,
@@ -352,11 +366,18 @@ class BNO080_I2C:
                 cls.SENSOR_REPORTID_STA: cls._print_sta,
                 cls.SENSOR_REPORTID_PER: cls._print_per
         }
-        rep_methods[rep[0]](rep)
+        return rep_methods[rep[0]](rep)
 
     @classmethod
     def _print_acc(cls, rep): 
-        print(f" Acceleration: stat: {hex(rep[2])} delay: {hex(rep[3])} x: {cls.print_hex(rep[5:3:-1])} y: {cls.print_hex(rep[7:5:-1])} z: {cls.print_hex(rep[9:7:-1])}")
+        return {
+            "name": "acc", 
+            "stat": hex(rep[2]), 
+            "delay": hex(rep[3]), 
+            "x": cls.print_hex(rep[5:3:-1]), 
+            "y": cls.print_hex(rep[7:5:-1]),  
+            "z": cls.print_hex(rep[9:7:-1])
+        }
     @classmethod
     def _print_gyr(cls, rep):
         pass
@@ -368,7 +389,16 @@ class BNO080_I2C:
         pass
     @classmethod
     def _print_rot(cls,rep):
-        print(f" Rotation: stat: {hex(rep[2])} delay: {hex(rep[3])} i: {cls.print_hex(rep[5:3:-1])} j: {cls.print_hex(rep[7:5:-1])} k: {cls.print_hex(rep[9:7:-1])} r: {cls.print_hex(rep[11:9:-1])} accuracy: {cls.print_hex(rep[13:11:-1])} ")
+        return {
+            "name": "rot", 
+            "stat": hex(rep[2]) ,
+            "delay": hex(rep[3]) ,
+            "i": cls.print_hex(rep[5:3:-1]) ,
+            "j": cls.print_hex(rep[7:5:-1]) ,
+            "k": cls.print_hex(rep[9:7:-1]) ,
+            "r": cls.print_hex(rep[11:9:-1]) ,
+            "accuracy": cls.print_hex(rep[13:11:-1])
+        }
     @classmethod
     def _print_gra(cls,rep):
         pass
@@ -420,8 +450,8 @@ if __name__ == '__main__':
         rot_rep = reps.get(imu.SENSOR_REPORTID_ROT, [False])[-1]
         count = 0 
         if acc_rep and rot_rep:
-            imu.print_rep(acc_rep)
-            imu.print_rep(rot_rep)
+            print(imu.parse_rep(acc_rep))
+            print(imu.parse_rep(rot_rep))
             count = 2 
         time.sleep(0.5)
         delete_last_lines(count)

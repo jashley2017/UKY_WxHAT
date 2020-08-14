@@ -283,7 +283,7 @@ class BNO080_I2C:
             self._i2c_delay()
             res_head, res_data = self.receive_shtp()
             count += 1
-        return [res_head, res_data] if res_head[2] == chan_type and res_data[0] in res_types else [None, None]
+        return [res_head, res_data] if res_head[2] == chan_type and res_data[0] in res_types else [None, []]
 
     def receive_shtp(self):
         '''
@@ -353,6 +353,7 @@ class BNO080_I2C:
     @classmethod
     def parse_rep(cls, rep):
         rep_methods = {
+                -1: cls._print_missing,
                 cls.SENSOR_REPORTID_ACC: cls._print_acc, 
                 cls.SENSOR_REPORTID_GYR: cls._print_gyr,
                 cls.SENSOR_REPORTID_MAG: cls._print_mag,
@@ -367,6 +368,13 @@ class BNO080_I2C:
                 cls.SENSOR_REPORTID_PER: cls._print_per
         }
         return rep_methods[rep[0]](rep)
+
+    @classmethod
+    def _print_missing(cls, rep):
+        return {
+                "name": "err",
+                "message": "no report available"
+                }
 
     @classmethod
     def _print_acc(cls, rep): 

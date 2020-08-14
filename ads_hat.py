@@ -93,7 +93,7 @@ class ADS_I2C():
                 code = int(hex_str, 16)
                 return code
 
-    def get_rtd_temp_cont(self, code):
+    def get_rtd_temp_cont(self, code=None):
         '''
         gets rtd temperature continuously 
         '''
@@ -105,7 +105,10 @@ class ADS_I2C():
             hexs = self.rdata()
             if hexs: 
                 hex_str = ''.join(hexs)
-                code.value = int(hex_str, 16)
+                if code is not None:
+                    code.value = int(hex_str, 16)
+                else:
+                    print(int(hex_str, 16))
 
     def get_adc_temp(self):
         '''

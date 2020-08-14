@@ -9,26 +9,25 @@ This was abandoned for the sampling of all of the devices concurrently because C
 
 The adafruit CircuitPython libraries need to be installed as well as the blinka library for digital IO.
 
-### Enable I2C and install python bus
+### Enable I2C on the Pi4
 
 ```sh
-sudo apt-get install -y python-smbus
 sudo apt-get install -y i2c-tools
 sudo raspi-config; # enable I2C in the interfacing options
 ```
 
-### Install CircuitPython Libraries
-
+### Install CircuitPython Libraries using venv
 ```sh
-  sudo pip3 install RPI.GPIO; # RPi compatibility layer
-  sudo pip3 install adafruit-blinka
-  sudo pip3 install adafruit-circuitpython-bme280
-  sudo pip3 install adafruit-circuitpython-bmp3xx
-  sudo pip3 install adafruit-circuitpython-neopixel
-  sudo pip3 install adafruit-circuitpython-sht31d
+python3 -m venv venv
+source venv/bin/activate
+pip3 install -r requirements.txt
 ```
 
 ## Usage
+Before any run, you will need to source the python virtual environment you created.
+```sh
+source venv/bin/activate
+```
 
 Test GPS
 ```sh

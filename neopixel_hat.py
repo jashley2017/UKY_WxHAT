@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 '''
 simple 2 pixel neopixel interface based off of preexisting neopixel library
 '''

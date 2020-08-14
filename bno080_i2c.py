@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3 
 from smbus2 import SMBus, i2c_msg
 import time
 import sys

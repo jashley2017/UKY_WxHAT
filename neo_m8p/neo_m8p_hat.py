@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 '''
 NEO_M8P RTK GPS UART+I2C python driver
 

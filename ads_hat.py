@@ -1,4 +1,4 @@
-#!/usr/bin/python3 
+#!/usr/bin/env python3 
 '''
 Python I2C driver for ADS122C04
 

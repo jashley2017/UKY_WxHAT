@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 '''
 A Python script to combine the functionality of all of the sensors in the Raspberry Pi 4 WxHAT
 '''

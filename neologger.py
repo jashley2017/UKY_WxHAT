@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from neopixel_hat import Pixels, PixelError, RED, GREEN, BLUE, WHITE, YELLOW, OFF
 from multiprocessing import Process
 import time

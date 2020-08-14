@@ -1,4 +1,4 @@
-#! /usr/bin/python3
+#!/usr/bin/env python3
 import time
 import csv
 import RPi.GPIO as GPIO
@@ -7,7 +7,7 @@ import digitalio
 from ads_hat import ADS_I2C
 from multiprocessing import Process, Value, Manager
 from thp_sensors import THPSensors
-from neopixel_hat import Pixels, PixelError, RED, GREEN, BLUE, WHITE, YELLOW
+from neopixel_hat import Pixels, PixelError, RED, GREEN, BLUE, WHITE, YELLOW, OFF
 from neo_m8p.neo_m8p_hat import NEO_M8P_HAT, NEO_M8P_MSG
 from neo_m8p.nav_consts import * 
 from bno080_i2c import BNO080_I2C
@@ -140,6 +140,8 @@ def run_hat():
     ads_proc.terminate()
     gps_proc.terminate()
     imu_proc.terminate()
+    neo.set_pixel(1, OFF)
+    neo.set_pixel(0, OFF)
 
 if __name__ == '__main__':
     run_hat()

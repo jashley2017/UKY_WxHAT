@@ -15,13 +15,14 @@ The adafruit CircuitPython libraries need to be installed as well as the blinka 
 ```sh
 sudo apt-get install -y i2c-tools
 sudo raspi-config; # enable I2C in the interfacing options
+sudo raspi-config; # disable Serial console (Interfacing options -> Serial -> No on console options, yes on serial option)
 ```
 
 #### Boot configuration
 The boot/config.txt file needs to be altered in order to accomadate the clock stretching for the IMU. In order to do this, copy the config.txt file in this repository to your /boot directory like so:
 
 ```sh 
-sudo cp ./config /boot
+sudo cp ./config.txt /boot
 ```
 
 #### Install CircuitPython Libraries using venv
@@ -39,30 +40,30 @@ source venv/bin/activate
 
 Test GPS
 ```sh
-./neo_m8p/neo_m8p_hat.py
+python3 ./neo_m8p/neo_m8p_hat.py
 ```
 
 Test THP sensors
 ```sh
-sudo ./thp_sensors.py
+sudo venv/bin/python3 ./thp_sensors.py
 ```
 
 Test ADC
 ```sh
-./ads_hat.py
+python3 ./ads_hat.py
 ```
 
 Test Concurrent Sampling *(not CircuitPython compatible)*
 ```sh
-sudo ./wxhat.py
+sudo venv/bin/python3 ./wxhat.py
 ```
 
 Test IMU
 ```sh
-./bno080_i2c.py
+python3 ./bno080_i2c.py
 ```
 
 ## Current issues
 
-- [ ] Configurable logger that controls Neopixel 2 should be used instead of print
+- [X] Configurable logger that controls Neopixel 2 should be used instead of print
 - [ ] Cleanup code make more generic

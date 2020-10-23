@@ -1,5 +1,4 @@
 RPi.GPIO
-multiprocessing
 smbus2
 Adafruit-Blinka
 adafruit-circuitpython-bme280

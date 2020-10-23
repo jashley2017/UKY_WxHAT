@@ -9,14 +9,22 @@ This was abandoned for the sampling of all of the devices concurrently because C
 
 The adafruit CircuitPython libraries need to be installed as well as the blinka library for digital IO.
 
-### Enable I2C on the Pi4
+### Initial Setup
 
+#### Enable I2C interfacing
 ```sh
 sudo apt-get install -y i2c-tools
 sudo raspi-config; # enable I2C in the interfacing options
 ```
 
-### Install CircuitPython Libraries using venv
+#### Boot configuration
+The boot/config.txt file needs to be altered in order to accomadate the clock stretching for the IMU. In order to do this, copy the config.txt file in this repository to your /boot directory like so:
+
+```sh 
+sudo cp ./config /boot
+```
+
+#### Install CircuitPython Libraries using venv
 ```sh
 python3 -m venv venv
 source venv/bin/activate
